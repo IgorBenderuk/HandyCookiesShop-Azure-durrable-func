@@ -1,9 +1,10 @@
-﻿using handyCookiesShop.models;
+﻿using durrableShop.models;
+using InvoiceGenerator.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace handyCookiesShop.Functions;
+namespace durrableShop.Functions;
 
 public class StockReservation
 {
@@ -28,7 +29,7 @@ public class StockReservation
 
             foreach (var item in order.Items)
             {
-                var cookie = await dbContext.Product.FindAsync(item.ProductId);
+                var cookie = await dbContext.Products.FindAsync(item.ProductId);
 
                 if (cookie == null || cookie.StockQuantity < item.Quantity)
                 {
@@ -41,7 +42,6 @@ public class StockReservation
             }
 
             await dbContext.SaveChangesAsync();
-            logger.LogInformation("Stock reserved successfully");
             return true;
         }
         catch (Exception ex)
@@ -52,7 +52,7 @@ public class StockReservation
     }
 
     [Function(nameof(RevertStockReservation))]
-    public async Task<bool> RevertStockReservation(
+    public async Task<OperationResult<bool>> RevertStockReservation(
      [ActivityTrigger] Order order,
      FunctionContext executionContext)
     {
@@ -66,12 +66,12 @@ public class StockReservation
 
             foreach (var item in order.Items)
             {
-                var product = await dbContext.Product.FindAsync(item.ProductId);
+                var product = await dbContext.Products.FindAsync(item.ProductId);
 
                 if (product == null)
                 {
                     logger.LogWarning($"Cannot reserve stock for cookie {item.ProductId}");
-                    return false;
+                    return new (false, $"Cannot reserve stock for cookie {item.ProductId}");
                 }
 
                 product.StockQuantity += item.Quantity;
@@ -79,13 +79,12 @@ public class StockReservation
             }
 
             await dbContext.SaveChangesAsync();
-            logger.LogInformation("Stock reserved successfully");
-            return true;
+            return new(true, "Stock reserved successfully");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error reserving stock");
-            return false;
+            return new (false, ex.Message);
         }
     }
 }

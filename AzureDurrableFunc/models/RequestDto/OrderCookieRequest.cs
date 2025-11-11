@@ -1,12 +1,6 @@
-﻿using Microsoft.ApplicationInsights.Extensibility.PerfCounterCollector.QuickPulse;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
-namespace handyCookiesShop.models.RequestDto
+namespace durrableShop.models.RequestDto
 {
     public class CreateCookieRequestDto
     {
@@ -14,8 +8,12 @@ namespace handyCookiesShop.models.RequestDto
         public int CustomerId { get; set; }
 
         [Required]
-        public List<CreateCookieRequestItemDto> OrderItems {  get; set; } 
+        public ICollection<CreateCookieRequestItemDto> OrderItems {  get; set; }
+
+        [Required]
+        public string ShippingAdress { get; set; }
     }
+    
     public class CreateCookieRequestItemDto
     {
         [Required]

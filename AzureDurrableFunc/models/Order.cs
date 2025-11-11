@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Castle.DynamicProxy;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace handyCookiesShop.models
+namespace durrableShop.models
 {
     public class Order
     {
@@ -15,7 +12,9 @@ namespace handyCookiesShop.models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsConfirmed { get; set; }
+        public bool IsPaied { get; set; }
         public bool IsCompleted { get; set; }
+        public string DeliveryAddress { get; set; }
 
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 

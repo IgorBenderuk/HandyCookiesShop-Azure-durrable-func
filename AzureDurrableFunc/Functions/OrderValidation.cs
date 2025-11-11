@@ -1,9 +1,11 @@
-﻿using handyCookiesShop.models;
+﻿using durrableShop.models;
+using InvoiceGenerator.Models;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace handyCookiesShop.Functions;
+namespace durrableShop.Functions;
 
 public class OrderValidation
 {
@@ -14,7 +16,7 @@ public class OrderValidation
     }
 
     [Function(nameof(ValidateOrder))]
-    public async Task<bool> ValidateOrder(
+    public async Task<OperationResult<bool>> ValidateOrder(
      [ActivityTrigger] Order order,
      FunctionContext executionContext)
     {
@@ -24,32 +26,32 @@ public class OrderValidation
         {
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
+            var products = await dbContext.Products.ToListAsync();
             foreach (var item in order.Items)
             {
-                var product = await dbContext.Product.FindAsync(item.ProductId);
+                var product = products.FirstOrDefault(x=>x.Id == item.ProductId);
 
                 if (product == null)
                 {
-                    logger.LogWarning($"Cookie with ID {item.ProductId} not found" );
-                    return false;
+                    logger.LogWarning($"Cookie with ID {item.ProductId} not found");
+                    return new (false, $"Cookie with ID {item.ProductId} not found");
                 }
                 if (product.StockQuantity < item.Quantity)
                 {
                     logger.LogWarning($"Insufficient stock for {product.Name}. Available: {product.StockQuantity}, Requested: {item.Quantity}");
-                    return false;
+                    return new(false, $"Insufficient stock for {product.Name}. Available: {product.StockQuantity}, Requested: {item.Quantity}");
                 }
 
                 logger.LogInformation($"{product.Name}: {item.Quantity} requested, {product.StockQuantity} available");
             }
 
             logger.LogInformation("Order validation successful");
-            return true;
+            return new (true,"",true);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error validating order");
-            return false;
+            return new (false, "Error validating order");
         }
     }
 }

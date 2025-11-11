@@ -1,4 +1,4 @@
-using handyCookiesShop;
+using durrableShop;
 using InvoiceGenerator.Models;
 using InvoiceGenerator.Services;
 using Microsoft.Azure.Functions.Worker;
@@ -21,6 +21,7 @@ builder.Services.Configure<SMTPOptions>(
 );
 builder.Services.AddScoped<IMailingService, MailingService>();
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration["HandyCookiesConnection"]));
+    options.UseSqlServer((builder.Configuration["HandyCookiesConnection"])));
+MappingConfig.Configure();
 
 builder.Build().Run();

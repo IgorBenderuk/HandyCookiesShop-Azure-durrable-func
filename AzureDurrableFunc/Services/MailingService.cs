@@ -15,7 +15,7 @@ namespace InvoiceGenerator.Services
 {
     public interface IMailingService
     {
-        Task SendInvoiceNotificationAsync(string recipientEmail, string fileName, Stream fileStream);
+        Task SendInvoiceNotificationAsync(string recipientEmail, string fileName, string emailBody);
     }
 
     internal class MailingService : IMailingService
@@ -29,7 +29,7 @@ namespace InvoiceGenerator.Services
             _logger = logger;
         }
      
-        public async Task SendInvoiceNotificationAsync(string recipientEmail, string fileName, Stream fileStream)
+        public async Task SendInvoiceNotificationAsync(string recipientEmail, string fileName, string emailBody)
         {
             try
             {
@@ -49,13 +49,10 @@ namespace InvoiceGenerator.Services
                     HtmlBody = $@"
                     <html>
                     <body>
-                        <h2>New invoice available!</h2>
-                        <p>Your invoice <strong>{fileName}</strong> has been successfully processed.</p>
-                        <p>Processing time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC</p>
+                       {emailBody}
                     </body>
                     </html>
-                ",
-                    TextBody = $"New invoice: {fileName}\nProcessing time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
+                "
                 };
 
 

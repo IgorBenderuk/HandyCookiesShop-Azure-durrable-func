@@ -5,15 +5,15 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using handyCookiesShop;
+using durrableShop;
 
 #nullable disable
 
-namespace handyCookiesShop.Migrations
+namespace durrableShop.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251106181755_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20251110174102_initialCreate")]
+    partial class initialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -33,7 +33,7 @@ namespace handyCookiesShop.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Address")
+                    b.Property<string>("BanckAccount")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -49,6 +49,10 @@ namespace handyCookiesShop.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PaymentMethods")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("UserName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -61,66 +65,22 @@ namespace handyCookiesShop.Migrations
                         new
                         {
                             Id = 1,
-                            Address = "Sweet St 12",
+                            BanckAccount = "some John number",
                             Email = "user1@mail.com",
                             FirstName = "John",
                             LastName = "Doe",
+                            PaymentMethods = "MasterCard,Visa",
                             UserName = "cookie_lover"
                         },
                         new
                         {
                             Id = 2,
-                            Address = "Sugar Ave 5",
+                            BanckAccount = "some Alice number",
                             Email = "user2@mail.com",
                             FirstName = "Alice",
                             LastName = "Smith",
+                            PaymentMethods = "UniversalBank,Visa",
                             UserName = "baker_fan"
-                        });
-                });
-
-            modelBuilder.Entity("handyCookiesShop.models.HandyCookie", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("Stock")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Cookies");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "Chocolate Chip",
-                            Price = 2.50m,
-                            Stock = 50
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Name = "Oatmeal Raisin",
-                            Price = 2.00m,
-                            Stock = 30
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Name = "Peanut Butter",
-                            Price = 2.20m,
-                            Stock = 20
                         });
                 });
 
@@ -138,10 +98,17 @@ namespace handyCookiesShop.Migrations
                     b.Property<int>("CustomerId")
                         .HasColumnType("int");
 
+                    b.Property<string>("DeliveryAddress")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsCompleted")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPaied")
                         .HasColumnType("bit");
 
                     b.HasKey("Id");
@@ -153,16 +120,10 @@ namespace handyCookiesShop.Migrations
 
             modelBuilder.Entity("handyCookiesShop.models.OrderItem", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CookieId")
-                        .HasColumnType("int");
-
                     b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("Price")
@@ -171,13 +132,85 @@ namespace handyCookiesShop.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.HasKey("OrderId", "ProductId");
 
-                    b.HasIndex("CookieId");
-
-                    b.HasIndex("OrderId");
+                    b.HasIndex("ProductId");
 
                     b.ToTable("OrderItems");
+                });
+
+            modelBuilder.Entity("handyCookiesShop.models.Product", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("StockQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<float>("Weight")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Products");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedAt = new DateTime(2025, 11, 10, 17, 41, 2, 381, DateTimeKind.Utc).AddTicks(5419),
+                            Description = "Classic cookie with chocolate chips.",
+                            Name = "Chocolate Chip",
+                            PaymentMethod = 1,
+                            Price = 8m,
+                            StockQuantity = 20,
+                            Weight = 0.5f
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedAt = new DateTime(2025, 11, 10, 17, 41, 2, 381, DateTimeKind.Utc).AddTicks(5423),
+                            Description = "Oatmeal cookie with juicy raisins.",
+                            Name = "Oatmeal Raisin",
+                            PaymentMethod = 0,
+                            Price = 3m,
+                            StockQuantity = 25,
+                            Weight = 0.4f
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatedAt = new DateTime(2025, 11, 10, 17, 41, 2, 381, DateTimeKind.Utc).AddTicks(5426),
+                            Description = "Rich peanut butter flavor cookie.",
+                            Name = "Peanut Butter",
+                            PaymentMethod = 3,
+                            Price = 5m,
+                            StockQuantity = 30,
+                            Weight = 0.2f
+                        });
                 });
 
             modelBuilder.Entity("handyCookiesShop.models.Order", b =>
@@ -185,7 +218,7 @@ namespace handyCookiesShop.Migrations
                     b.HasOne("handyCookiesShop.models.Customer", "Customer")
                         .WithMany()
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Customer");
@@ -193,21 +226,21 @@ namespace handyCookiesShop.Migrations
 
             modelBuilder.Entity("handyCookiesShop.models.OrderItem", b =>
                 {
-                    b.HasOne("handyCookiesShop.models.HandyCookie", "Cookie")
-                        .WithMany()
-                        .HasForeignKey("CookieId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("handyCookiesShop.models.Order", "Order")
                         .WithMany("Items")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Cookie");
+                    b.HasOne("handyCookiesShop.models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Order");
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("handyCookiesShop.models.Order", b =>

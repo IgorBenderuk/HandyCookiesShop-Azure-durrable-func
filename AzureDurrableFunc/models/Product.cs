@@ -4,8 +4,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace handyCookiesShop.models
+namespace durrableShop.models
 {
+    public enum PaymentMethods
+    {
+        Visa,
+        MasterCard,
+        BankOfAmerica,
+        UniversalBank
+    } 
     public class Product
     {
         public int Id { get; set; }
@@ -15,5 +22,7 @@ namespace handyCookiesShop.models
         public int StockQuantity { get; set; }    
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? DeletedAt { get; set; }
+        public PaymentMethods PaymentMethod { get; set; }
+        public float Weight { get; set; }
     }
 }

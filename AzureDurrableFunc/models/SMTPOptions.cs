@@ -6,7 +6,13 @@ using System.Threading.Tasks;
 
 namespace InvoiceGenerator.Models
 {
-    internal class SMTPOptions
+    public record OperationResult<T>(
+    bool IsSuccess,
+    string Message,
+    T? Value = default
+    );
+
+    public class SMTPOptions
     {
         public string SmtpHost { get; set; }
         public int SmtpPort { get; set; }
