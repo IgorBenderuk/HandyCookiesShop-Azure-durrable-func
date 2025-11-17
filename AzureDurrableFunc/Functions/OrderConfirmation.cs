@@ -1,11 +1,14 @@
 ﻿using durrableShop.models;
+using DurrableShop.models.RequestDto;
 using InvoiceGenerator.Models;
 using InvoiceGenerator.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq.Expressions;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace durrableShop.Functions;
@@ -13,9 +16,12 @@ namespace durrableShop.Functions;
 public class OrderConfirmation
 {
     private readonly IMailingService _mailingService;
-    public OrderConfirmation(IMailingService mailingService)
+    private readonly AppDbContext _appDbContext;
+
+    public OrderConfirmation(IMailingService mailingService,AppDbContext appDbContext)
     {
         _mailingService = mailingService;
+        _appDbContext = appDbContext;
     }
 
     [Function(nameof(OrderConfirmationOrchestrator))]
@@ -23,8 +29,8 @@ public class OrderConfirmation
     {
         var logger = context.CreateReplaySafeLogger(nameof(OrderConfirmationOrchestrator));
         var orderData = context.GetInput<Order>();
-
-        await context.CallActivityAsync(nameof(SendConfirmation), orderData);
+        await context.CallActivityAsync(nameof(SendConfirmation),
+            new ConfirmPurchaseRequestDto() { Order =orderData , InstanceId = context.InstanceId });
 
         using (var cts = new CancellationTokenSource())
         {
@@ -42,59 +48,64 @@ public class OrderConfirmation
                 if (confirmed)
                 {
                     logger.LogInformation("Order {OrderId} confirmed by customer", orderData.Id);
-                    await context.CallActivityAsync("ProcessOrder", orderData);
                     return new (true, "Order Confirmed and Processed");
                 }
                 else
                 {
                     logger.LogInformation("Order {OrderId} rejected by customer", orderData.Id);
-                    await context.CallActivityAsync("CancelOrder", orderData);
                     return new (false, "Order Cancelled by Customer");
                 }
             }
             else
             {
                 logger.LogWarning("Order {OrderId} confirmation timeout", orderData.Id);
-                await context.CallActivityAsync("CancelOrderDueToTimeout", orderData);
                 return new(false, "Order Cancelled - Timeout");
             }
         }
     }
 
     [Function(nameof(SendConfirmation))]
-    public async Task SendConfirmation([ActivityTrigger] (Order order,string instanceId)input, FunctionContext executionContext)
+    public async Task SendConfirmation([ActivityTrigger] ConfirmPurchaseRequestDto input, FunctionContext executionContext)
     {
-        var logger = executionContext.GetLogger(nameof(SendConfirmation));
-        logger.LogInformation("Sending confirmation email for order {OrderId}", input.order.Id);
-        var (order, instanceId) = input;
-        string confirmUrl = $"http://localhost:7282/api/ConfirmOrder={instanceId}&orderId={order.Id}&approved=true";
-        string rejectUrl = $"http://localhost:7282/api/ConfirmOrder={instanceId}&orderId={order.Id}&approved=false";
+        try
+        {
+            var order = input.Order;
 
-        string emailBody = $@"
-        <h2>Order Confirmation Required</h2>
-        <p>Dear {order.Customer.FirstName}{order.Customer.LastName},</p>
-        <p>Please confirm your order #{order.Id}</p>
-        <div style='margin: 20px 0;'>
-            <a href='{confirmUrl}' 
-               style='background-color: #4CAF50; color: white; padding: 15px 32px; 
-                      text-decoration: none; display: inline-block; margin-right: 10px;'>
-                 Confirm Order
-            </a>
-            <a href='{rejectUrl}' 
-               style='background-color: #f44336; color: white; padding: 15px 32px; 
-                      text-decoration: none; display: inline-block;'>
-                 Cancel Order
-            </a>
-        </div>
-        <p>This link will expire in 24 hours.</p>
-        ";
+            var logger = executionContext.GetLogger(nameof(SendConfirmation));
 
-        await _mailingService.SendInvoiceNotificationAsync(
-            order.Customer.Email,
-            $"Order_{order.Id}_Confirmation",
-            emailBody
-        );
-    }
+            logger.LogInformation("Sending confirmation email for order {OrderId}", order.Id);
+            string confirmUrl = $"http://localhost:7282/api/ConfirmOrder?instanceId={input.InstanceId}&orderId={order.Id}&approved=true";
+            string rejectUrl = $"http://localhost:7282/api/ConfirmOrder?instanceId={input.InstanceId}&orderId={order.Id}&approved=false";
+
+            string emailBody = $@"
+             <h2>Order Confirmation Required</h2>
+             <p>Dear {order.Customer.FirstName}{order.Customer.LastName},</p>
+             <p>Please confirm your order #{order.Id}</p>
+             <div style='margin: 20px 0;'>
+                 <a href='{confirmUrl}' 
+                    style='background-color: #4CAF50; color: white; padding: 15px 32px; 
+                           text-decoration: none; display: inline-block; margin-right: 10px;'>
+                      Confirm Order
+                 </a>
+                 <a href='{rejectUrl}' 
+                    style='background-color: #f44336; color: white; padding: 15px 32px; 
+                           text-decoration: none; display: inline-block;'>
+                      Cancel Order
+                 </a>
+             </div>
+             <p>This link will expire in 24 hours.</p>
+             ";
+
+            await _mailingService.SendInvoiceNotificationAsync(
+                order.Customer.Email,
+                $"Order_{order.Id}_Confirmation",
+                emailBody
+            );
+        }catch(Exception ex)
+        {
+            throw(ex);
+        }
+     }
 
     [Function("ConfirmOrder")]
     public async Task<HttpResponseData> ConfirmOrder(

@@ -6,6 +6,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Net;
@@ -59,19 +60,27 @@ public class ProductOrderProcessor
 
             logger.LogInformation("Step 3: Purchave paymend and shipping validation");
 
-            var purchaseCost = await context.CallSubOrchestratorAsync<OperationResult<decimal>>(nameof(FinanceFunctions.ValidatePaymentInfoSubOrchestrator), order);
+            var purchaseCost = await context.CallSubOrchestratorAsync<OperationResult<decimal>>
+                (nameof(FinanceFunctions.ValidatePaymentInfoSubOrchestrator), order);
+
             if (!purchaseCost.IsSuccess)
             {
                 results.Add($"Step 3: {purchaseCost.Message}");
                 return string.Join("\n", results);
             }
-            results.Add($"Step 3 {purchaseCost.Message}");
-            logger.LogInformation("Step 4: Purchave paymend confirmation");
+            results.Add($"Step 3 customer balance is valid {purchaseCost.Message}");
+            
 
-            logger.LogInformation("Step 5: Purchave confirmation");
+            logger.LogInformation("Step 4: Purchave confirmation");
 
-            var confirmed = await context.CallSubOrchestratorAsync<bool>(nameof(OrderConfirmation.OrderConfirmationOrchestrator), order);
+            var confirmed = await context.CallSubOrchestratorAsync < OperationResult<bool>>(nameof(OrderConfirmation.OrderConfirmationOrchestrator), order);
 
+            if (!confirmed.IsSuccess)
+            {
+                logger.LogInformation("Step 4: Purchave confirmation failed");
+                return string.Join("\n", results);
+            }
+            logger.LogInformation("Step : Purchave confirmation complete");
 
             return string.Join("\n", results);
         }
@@ -121,6 +130,9 @@ public class ProductOrderProcessor
 
                 dbContext.Orders.Add(order);
                 await dbContext.SaveChangesAsync();
+                order = await dbContext.Orders.Include(o=>o.Customer)
+                    .Include(o=>o.Items)
+                    .FirstOrDefaultAsync(o=>o.Id == order.Id);
 
                 logger.LogInformation($"Order {order.Id} saved to database");
             }

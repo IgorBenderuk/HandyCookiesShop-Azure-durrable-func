@@ -1,4 +1,5 @@
 using durrableShop.models;
+using DurrableShop.models.RequestDto;
 using InvoiceGenerator.Models;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Azure.Functions.Worker;
@@ -18,12 +19,10 @@ public class FinanceFunctions
         _serviceProvider = serviceProvider;
         _bankAccountNumberAmountDictionary = new Dictionary<string, decimal>()
         {
-            { "some John number", 150 },
-            { "some Alice number", 50 }
+            { "some John number", 250 },
+            { "some Alice number", 180 }
         };
     }
-  
-
 
     [Function(nameof(ValidateCustomerPaymentMethod))]
     public async Task<OperationResult<bool>> ValidateCustomerPaymentMethod(
@@ -64,7 +63,7 @@ public class FinanceFunctions
 
     [Function(nameof(ValidateBalanceAndCalculateTotal))]
     public async Task<OperationResult<decimal>> ValidateBalanceAndCalculateTotal(
-     [ActivityTrigger] (Order orderEntry, decimal shippingCost) input,
+     [ActivityTrigger] ValidateBalanceRequestDto input,
      FunctionContext executionContext)
     {
         ILogger logger = executionContext.GetLogger("ValidateBalance");
@@ -73,19 +72,19 @@ public class FinanceFunctions
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            var order = await dbContext.Orders.FindAsync(input.orderEntry.Id);
-            var customer = await dbContext.Customers.FindAsync(input.orderEntry.CustomerId);
+            var order = await dbContext.Orders.FindAsync(input.OrderEntry.Id);
+            var customer = await dbContext.Customers.FindAsync(input.OrderEntry.CustomerId);
 
             if (order == null)
-                return new(false, $"Order {input.orderEntry.Id} not found");
+                return new(false, $"Order {input.OrderEntry.Id} not found");
 
             if (customer == null)
-                return new(false, $"Customer {input.orderEntry.CustomerId} not found");
+                return new(false, $"Customer {input.OrderEntry.CustomerId} not found");
 
             if (!_bankAccountNumberAmountDictionary.TryGetValue(customer.BankAccount, out decimal balance))
                 return new(false, $"Bank account for {customer.Id} not found");
 
-            decimal totalCost = order.TotalAmount + input.shippingCost;
+            decimal totalCost = order.TotalAmount + input.ShippingCost;
 
             if (totalCost > balance)
                 return new(false, $"Insufficient funds. Need {totalCost}, available {balance}");
@@ -115,17 +114,17 @@ public class FinanceFunctions
             await Task.WhenAll(paymentTask, shippingTask);
 
             var payment = paymentTask.Result;
-            var shipping = shippingTask.Result;
+            var shippingConst = shippingTask.Result;
 
             if (!payment.IsSuccess)
                 return new(false, payment.Message);
 
-            if (!shipping.IsSuccess)
-                return new(false, shipping.Message);
+            if (!shippingConst.IsSuccess)
+                return new(false, shippingConst.Message);
 
             var totalCost = await context.CallActivityAsync<OperationResult<decimal>>(
                 nameof(ValidateBalanceAndCalculateTotal),
-                (order, shipping.Value)
+                new ValidateBalanceRequestDto() {  OrderEntry=order, ShippingCost = shippingConst.Value }
             );
 
             return totalCost;
