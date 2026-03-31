@@ -1,91 +1,203 @@
-📦 Project Overview
+# 🛒 Order Processing System (Azure Durable Functions)
 
-This project is an order processing system built with Azure Durable Functions, implementing a distributed workflow for handling e-commerce orders.
+## 📦 Overview
 
-The system demonstrates:
+This project is a distributed order processing system built with Azure Durable Functions using the .NET isolated worker model.
 
-Orchestration patterns
-Sub-orchestrators
-Activity-based execution
-External event handling (human interaction)
-Integration with EF Core and SMTP services
-🧠 Architecture Overview
+It demonstrates how to implement a reliable, multi-step workflow for handling e-commerce orders, including:
 
-The system follows a Durable Functions orchestration pattern:
+* validation
+* stock reservation
+* payment processing
+* shipping calculation
+* user confirmation
 
-Main Orchestrator
+The system follows orchestration and saga-like patterns to ensure consistency across multiple steps.
 
-ProductOrderProcessor
+---
 
-Pipeline:
+## 🧠 Architecture
 
-Order Validation
-Checks product existence
-Validates stock availability
-Stock Reservation
-Deducts product quantities from DB
-Payment & Shipping Validation (Sub-Orchestrator)
-Parallel execution:
-Payment method validation
-Shipping cost calculation
-Final step:
-Balance validation
-Order Confirmation (Human Interaction)
-Sends email with confirmation link
-Waits for external event (OrderConfirmation)
-Timeout: 5 minutes
-⚙️ Key Components
-Activities
-ValidateOrder → validates stock and product existence
-ReserveStock → reserves inventory
-RevertStockReservation → rollback on failure
-CalculateShippingCost → calculates delivery cost
-ValidateCustomerPaymentMethod → checks allowed payment methods
-ValidateBalanceAndCalculateTotal → ensures sufficient funds
-Sub-Orchestrators
-ValidatePaymentInfoSubOrchestrator
-Runs parallel tasks
-Combines shipping + payment validation
-OrderConfirmationOrchestrator
-Sends email
-Waits for user confirmation via HTTP endpoint
-Implements timeout + external event pattern
-🧪 How to Run & Test
-1. Prerequisites
-.NET SDK
-Azure Functions Core Tools
-Azurite
-SQL Server
-2. Start dependencies
+The application is based on a Durable Functions orchestration pattern.
+
+### High-Level Flow
+
+```
+HTTP Request → Orchestrator → Activities → Sub-Orchestrators → External Event
+```
+
+---
+
+## ⚙️ Workflow
+
+### Entry Point
+
+**Function:** `StartProductOrder` (HTTP Trigger)
+
+* Accepts incoming order request
+* Normalizes order items (groups duplicates)
+* Saves order to database
+* Starts orchestration
+
+---
+
+### Main Orchestrator
+
+**Function:** `ProductOrderProcessor`
+
+This is the core workflow controller.
+
+#### Step 1 – Order Validation
+
+* Ensures products exist
+* Checks stock availability
+
+#### Step 2 – Stock Reservation
+
+* Deducts product quantities from database
+* Prevents overselling
+
+#### Step 3 – Payment & Shipping Validation (Sub-Orchestrator)
+
+* Runs in parallel:
+
+  * Payment method validation
+  * Shipping cost calculation
+* Then validates:
+
+  * Customer balance
+  * Total cost (order + shipping)
+
+#### Step 4 – Order Confirmation (Sub-Orchestrator)
+
+* Sends confirmation email
+* Waits for user action (approve/reject)
+* Uses external event pattern
+* Timeout: 5 minutes
+
+---
+
+## 🔁 Sub-Orchestrators
+
+### 1. Payment & Shipping
+
+**Function:** `ValidatePaymentInfoSubOrchestrator`
+
+* Executes parallel activities
+* Aggregates results
+* Performs final balance validation
+
+---
+
+### 2. Order Confirmation
+
+**Function:** `OrderConfirmationOrchestrator`
+
+* Sends email with confirmation links
+* Waits for external event:
+
+  ```
+  OrderConfirmation
+  ```
+* Handles:
+
+  * approval
+  * rejection
+  * timeout
+
+---
+
+## 🔧 Activities
+
+* `ValidateOrder` → validates product existence and stock
+* `ReserveStock` → reduces inventory
+* `RevertStockReservation` → rollback on failure
+* `CalculateShippingCost` → calculates delivery price
+* `ValidateCustomerPaymentMethod` → checks allowed payment methods
+* `ValidateBalanceAndCalculateTotal` → verifies available balance
+* `SendConfirmation` → sends email with confirmation links
+
+---
+
+## 🗄️ Data Layer
+
+Uses Entity Framework Core with SQL Server.
+
+### Entities:
+
+* Customer
+* Product
+* Order
+* OrderItem
+
+### Features:
+
+* Seeded data for testing
+* Enum conversion for payment methods
+* Relationship configuration with cascading rules
+
+---
+
+## 🧪 How to Run
+
+### 1. Prerequisites
+
+* .NET SDK
+* Azure Functions Core Tools
+* Azurite (local storage emulator)
+* SQL Server
+
+---
+
+### 2. Start Azurite
+
+```bash
 azurite
+```
 
-3. Configure settings
+---
 
-Create local.settings.json:
+### 3. Configure settings
 
+Create `local.settings.json`:
+
+```json
 {
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "HandyCookiesConnection": "<your-db-connection>",
+
     "Email:SmtpHost": "smtp.gmail.com",
     "Email:SmtpPort": "587",
     "Email:Username": "<email>",
     "Email:Password": "<password>"
   }
 }
+```
 
-4. Run the project
+---
+
+### 4. Run the project
+
+```bash
 func start
+```
 
-5. Send request
+---
 
-POST
+## 📩 How to Test
 
-http://localhost:7071/api/StartProductOrder
+### Endpoint
 
+```
+POST http://localhost:7071/api/StartProductOrder
+```
 
-Body:
+---
 
+### Example Request
+
+```json
 {
   "customerId": 1,
   "shippingAdress": "Bern",
@@ -95,18 +207,105 @@ Body:
     { "cookieId": 3, "quantity": 3 }
   ]
 }
+```
 
-6. What happens next
-Order is saved to DB
-Orchestration starts
-Email is sent with confirmation links
-7. Confirm order
+---
 
-Open link from email:
+### What happens after request
 
-/api/ConfirmOrder?instanceId=...&approved=true
+1. Order is saved to database
+2. Orchestration starts
+3. System executes validation and reservation steps
+4. Email is sent to customer
+5. System waits for confirmation
 
+---
 
-OR manually:
+## ✅ Order Confirmation
 
-http://localhost:7071/api/ConfirmOrder?instanceId=XXX&approved=true
+User receives email with two links:
+
+* Approve order
+* Reject order
+
+These links call:
+
+```
+/api/ConfirmOrder?instanceId=...&approved=true|false
+```
+
+This triggers the orchestration to continue.
+
+---
+
+## ⚠️ Failure Handling
+
+* If stock reservation fails → process stops
+* If payment validation fails → process stops
+* If exception occurs → stock rollback is triggered
+* If user does not confirm → order is cancelled (timeout)
+
+---
+
+## 💡 Important Notes
+
+* Workflow is stateful (Durable Functions)
+* Uses parallel execution (`Task.WhenAll`)
+* Implements compensation logic (rollback)
+* Uses external events for human interaction
+
+---
+
+## ⚠️ Limitations
+
+* Hardcoded delivery distances and balances
+* No retry policies for activities
+* Orchestrator returns string instead of structured result
+* Email sending depends on SMTP configuration
+
+---
+
+## 🚀 Possible Improvements
+
+* Move configuration to database or external config
+* Add retry and error policies
+* Introduce DTOs for orchestration responses
+* Replace hardcoded data with persistent storage
+* Add logging/monitoring dashboard
+
+---
+
+## 🎯 Key Concepts Demonstrated
+
+* Durable Functions orchestration
+* Sub-orchestrators
+* Parallel execution
+* Saga / compensation pattern
+* Human-in-the-loop workflows
+* Integration with database and external services
+
+---
+
+## 🔒 Security Note
+
+Do NOT commit sensitive data such as:
+
+* SMTP credentials
+* database connection strings
+
+Use environment variables or a template configuration file instead.
+
+---
+
+## 🧩 Summary
+
+This project demonstrates how to build a reliable, multi-step order processing system using Durable Functions.
+
+It models real-world business workflows with:
+
+* validation
+* state management
+* failure recovery
+* asynchronous processing
+
+and provides a solid foundation for distributed system design in cloud environments.
